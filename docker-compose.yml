@@ -1,0 +1,93 @@
+services:
+  student-db:
+    image: mysql:8.0
+    container_name: student-db
+    environment:
+      MYSQL_ROOT_PASSWORD: "Janu@2012"
+      MYSQL_DATABASE: student_db
+    ports:
+      - "3307:3306"
+    volumes:
+      - student_db_data:/var/lib/mysql
+      - ./docker/mysql/student-db/init.sql:/docker-entrypoint-initdb.d/01-student-db.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pJanu@2012"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  student-profile-db:
+    image: mysql:8.0
+    container_name: student-profile-db
+    environment:
+      MYSQL_ROOT_PASSWORD: "Janu@2012"
+      MYSQL_DATABASE: student_profile_db
+    ports:
+      - "3308:3306"
+    volumes:
+      - student_profile_db_data:/var/lib/mysql
+      - ./docker/mysql/student-profile-db/init.sql:/docker-entrypoint-initdb.d/01-student-profile-db.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pJanu@2012"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  service-registry:
+    container_name: service-registry
+    build:
+      context: ./service-registry
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    ports:
+      - "8761:8761"
+
+  student-service:
+    container_name: student-service
+    build:
+      context: ./student-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      student-db:
+        condition: service_healthy
+      service-registry:
+        condition: service_started
+    ports:
+      - "8081:8081"
+
+  student-profile-service:
+    container_name: student-profile-service
+    build:
+      context: ./student-profile-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      student-profile-db:
+        condition: service_healthy
+      service-registry:
+        condition: service_started
+    ports:
+      - "8082:8082"
+
+  api-gateway:
+    container_name: api-gateway
+    build:
+      context: ./api-gateway
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      service-registry:
+        condition: service_started
+      student-service:
+        condition: service_started
+      student-profile-service:
+        condition: service_started
+    ports:
+      - "8085:8080"
+
+volumes:
+  student_db_data:
+  student_profile_db_data:
